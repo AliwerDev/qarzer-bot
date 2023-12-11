@@ -26,8 +26,6 @@ module.exports.reminderText = () => {
   return reminders[randomIndex];
 };
 
-module.exports.moneyFormatter = {
-  format: (currency, money) => {
-    return new Intl.NumberFormat("de-DE", { style: "currency", currency }).format(money);
-  },
+module.exports.formatMoney = (currency, money) => {
+  return new Intl.NumberFormat("de-DE", { style: "currency", currency }).format(money);
 };
