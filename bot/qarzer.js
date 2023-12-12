@@ -136,7 +136,7 @@ class QarzerBot {
   };
 
   clickMyExpenses = async (user) => {
-    const myExpenses = await Expense.find({ active: true, $or: [{ creatorId: user._id }, { relatedTo: user._id }] }).populate("creatorId relatedTo", "firstName lastName chatId");
+    const myExpenses = await Expense.find({ status: "active", $or: [{ creatorId: user._id }, { relatedTo: user._id }] }).populate("creatorId relatedTo", "firstName lastName chatId");
 
     if (!myExpenses.length) return this.sendMessage("💸 <b>Sizda faol qarzlar mavjud emas!</b>\n\n", { keys: expenseKeys });
 
