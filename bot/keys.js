@@ -21,7 +21,7 @@ const keys = {
   activeExpense: "🕧 To'lanmagan",
   paidExpense: "✅ To'langan",
   createdByMe: "💰 Mening harajatlarim",
-  clearAllExpenses: "🔄 Hisobni yangilash",
+  resetAccount: "🔄 Hisobni yangilash",
 };
 
 module.exports.botSteps = {
