@@ -46,6 +46,6 @@ module.exports.onlyHomePageKey = [[keys.homePage]];
 
 module.exports.noCurrentGroupKeys = [[keys.joinGroup, keys.createGroup]];
 
-module.exports.expenseKeys = [[keys.activeExpense, keys.paidExpense], [keys.createdByMe, keys.clearAllExpenses], [keys.homePage]];
+module.exports.expenseKeys = [[keys.activeExpense, keys.paidExpense], [keys.createdByMe, keys.resetAccount], [keys.homePage]];
 
 module.exports.groupKeys = [[keys.createGroup, keys.myGroups], [keys.members, keys.joinGroup], [keys.homePage]];
