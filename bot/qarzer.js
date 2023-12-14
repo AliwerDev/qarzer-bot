@@ -588,9 +588,6 @@ class QarzerBot {
   choosedReasetAccountPartner = async (user, query) => {
     const partnerId = query.data.replace("RESET_ACCOUNT_PARTNER ", "");
 
-    const expenses = await Expense.findMany({ status: "active", $and: [{ $or: [{ creatorId: user._id }, { creatorId: partnerId }] }, { $or: [{ relatedTo: user._id }, { relatedTo: partnerId }] }] });
-    if (!expenses.length) return this.sendMessage(user, "🤷‍♂️ Siz va tanlagan gruhdoshingiz o'rtasida faol qarzlar mavjud emas! ", { keys: expenseKeys });
-
     User.findById(partnerId)
       .then((partner) => {
         const inlineKeys = [
