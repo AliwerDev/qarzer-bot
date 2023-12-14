@@ -26,7 +26,7 @@ class QarzerBot {
     if (!user) return this.createUser(chatId, msg);
 
     // CHECK BOT STEPS
-    if (message === keys.homePage) return this.clickBack(user);
+    if (message === keys.homePage || message === keys.home) return this.clickBack(user);
     if (user.botStep === botSteps.groupName) return this.enterGroupName(user, message);
     if (user.botStep === botSteps.groupCurrency) return this.enterGroupCurrency(user, message);
     if (user.botStep === botSteps.joinGroup) return this.joinGroup(user, message);
@@ -293,7 +293,7 @@ class QarzerBot {
         listMessage += `\n<i>Guruh yaratuvchisi:</i> ${getFullName(creator)}\n\n`;
 
         group.members?.forEach((user, index) => {
-          listMessage += `${index + 1}. <a href="tg://user?id=${user.chatId | user.userName}">${getFullName(user)}</a>\n`;
+          listMessage += `${index + 1}. <a href="tg://user?id=${user.chatId || user.userName}">${getFullName(user)}</a>\n`;
         });
         this.sendMessage(user, listMessage, { keys: groupKeys });
       });
@@ -597,7 +597,7 @@ class QarzerBot {
           ],
         ];
         const msgForPartner = `<a href="tg://user?id=${user.chatId}">${getFullName(user)}</a> o'rtangizdagi qarzlarni no'llashtirmoqchi, \n\n<b>o'rtangizda qarzlar qolmaganligini tasdiqlaysizmi?</b>`;
-        const msg = `<b>⏳Sizning so'rovingiz <a href="tg://user?id=${user.chatId}">${getFullName(user)}</a> ga yuborildi.</b>\n\n<i>So'rovungiz tasdiqlangandan so'ng o'rtangizdagi qarzlar o'chiriladi!</i>`;
+        const msg = `<b>⏳Sizning so'rovingiz <a href="tg://user?id=${partner.chatId}">${getFullName(partner)}</a> ga yuborildi.</b>\n\n<i>So'rovungiz tasdiqlangandan so'ng o'rtangizdagi qarzlar o'chiriladi!</i>`;
 
         this.sendMessage(user, msgForPartner, { keys: inlineKeys, chatId: partner.chatId, isInline: true });
         this.bot.answerCallbackQuery(query.id).then(() => this.sendMessage(user, msg));

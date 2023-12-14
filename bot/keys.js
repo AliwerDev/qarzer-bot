@@ -3,6 +3,7 @@ const keys = {
   start: "/start",
   clear: "/clear",
   menu: "/menu",
+  home: "/home",
 
   // MAIN KEYS
   createExpens: "➕ Qarz yaratish",
