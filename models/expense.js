@@ -12,7 +12,6 @@ const expenseSchema = new Schema(
       required: true,
       default: "active",
       enum: ["active", "paid"],
-      // todo: add statuses "unconfirmed", "rejected",
     },
     description: { type: String },
     relatedTo: { type: mongoose.Types.ObjectId, ref: "User" },

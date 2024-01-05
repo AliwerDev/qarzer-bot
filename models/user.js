@@ -11,6 +11,9 @@ const userSchema = new Schema(
     currentGroupId: { type: mongoose.Types.ObjectId, ref: "Group" },
     chatId: { type: Number, required: true },
 
+    payExpenseTo: mongoose.Types.ObjectId,
+    payExpenseAmount: String,
+
     incomplatedGroupName: String,
     incomplatedExpense: {
       amount: Number,

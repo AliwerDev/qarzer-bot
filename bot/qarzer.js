@@ -16,7 +16,7 @@ class QarzerBot {
     this.bot.on("callback_query", this.onCallBackQuery);
   }
 
-  // HANDLERS
+  // MESSAGE HANDLER
   onMessage = async (msg) => {
     const chatId = msg.chat.id;
     const message = msg.text;
@@ -30,9 +30,13 @@ class QarzerBot {
     if (user.botStep === botSteps.groupName) return this.enterGroupName(user, message);
     if (user.botStep === botSteps.groupCurrency) return this.enterGroupCurrency(user, message);
     if (user.botStep === botSteps.joinGroup) return this.joinGroup(user, message);
-    // creating expens steps
+
+    // creating expense steps
     if (user.botStep === botSteps.expensDescription) return this.enterExpensDesc(user, message);
     if (user.botStep === botSteps.expensAmount) return this.enterExpensAmount(user, message);
+
+    // pay expense steps
+    if (user.botStep === botSteps.payExpenseAmount) return this.enterPayExpenseAmount(user, message);
 
     // CHECKING MESSAGE
     switch (message) {
@@ -48,17 +52,8 @@ class QarzerBot {
       case keys.myExpenses:
         this.clickMyExpenses(user);
         break;
-      case keys.activeExpense:
-        this.clickActiveExpenseList(user);
-        break;
-      case keys.createdByMe:
-        this.clickCreatedByMe(user);
-        break;
-      case keys.paidExpense:
-        this.clickPaidExpenses(user);
-        break;
-      case keys.resetAccount:
-        this.clickResetAccount(user);
+      case keys.payExpense:
+        this.clickPayExpense(user);
         break;
       case keys.group:
         this.clickGroupMenu(user);
@@ -85,6 +80,8 @@ class QarzerBot {
         this.bot.deleteMessage(chatId, msg.message_id);
     }
   };
+
+  // CALLBACK HANDLER
   onCallBackQuery = async (query) => {
     const chatId = query.from.id;
     const user = await User.findOne({ chatId });
@@ -98,10 +95,10 @@ class QarzerBot {
     if (query.data.startsWith("MY_EXPENSE_PAGE")) return this.clickCreatedByMe(user, query.data.slice(15), query.message.message_id);
     if (query.data.startsWith("MY_EXPENSE")) return this.mySingleExpense(user, query);
     if (query.data.startsWith("REMINDER")) return this.reminderExpense(user, query);
-    if (query.data.startsWith("PAID")) return this.changeToPaid(user, query);
-    if (query.data.startsWith("RESET_ACCOUNT_PARTNER")) return this.choosedReasetAccountPartner(user, query);
-    if (query.data.startsWith("RESET_ACCOUNT_ACCEPTED")) return this.resetAccountWithAccepted(user, query);
-    if (query.data.startsWith("RESET_ACCOUNT_REJECTED")) return this.resetAccountWithRejected(user, query);
+    if (query.data.startsWith("PAY_EXPENSE_ACCEPTED")) return this.payExpenseAccepted(user, query);
+    if (query.data.startsWith("PAY_EXPENSE_REJECTED")) return this.payExpenseRejected(user, query);
+    if (query.data.startsWith("PAY_EXPENSE")) return this.payExpense(user, query);
+    if (query.data.startsWith("HISTORY")) return this.expenseHistory(user, query);
     if (query.data.startsWith("DELETE_MSG")) return this.bot.deleteMessage(chatId, query.message.message_id);
   };
 
@@ -132,28 +129,20 @@ class QarzerBot {
   };
 
   clickMyExpenses = async (user) => {
-    const myExpenses = await Expense.find({ status: "active", $or: [{ creatorId: user._id }, { relatedTo: user._id }] }).populate("creatorId relatedTo", "firstName lastName chatId");
-
-    if (!myExpenses.length) return this.sendMessage(user, "💸 <b>Sizda faol qarzlar mavjud emas!</b>\n\n", { keys: expenseKeys });
-
-    const expensesObject = {};
-    myExpenses.forEach((exp) => {
-      if (exp.creatorId.chatId === user.chatId) {
-        if (expensesObject[exp.relatedTo.chatId]) expensesObject[exp.relatedTo.chatId].amount += exp.amount;
-        else expensesObject[exp.relatedTo.chatId] = { amount: exp.amount, currency: exp.currency, name: getFullName(exp.relatedTo) };
-      } else {
-        if (expensesObject[exp.creatorId.chatId]) expensesObject[exp.creatorId.chatId].amount -= exp.amount;
-        else expensesObject[exp.creatorId.chatId] = { amount: -exp.amount, currency: exp.currency, name: getFullName(exp.creatorId) };
-      }
-    });
+    const expenses = await this.getMyExpenses(user);
+    if (expenses.length === 0) return this.sendMessage(user, "Sizda qarzlar mavjud emas!");
 
     let text = "<b>Umumiy qarzlaringiz:</b> \n\n";
-    for (const key in expensesObject) {
-      text += `${expensesObject[key].name.trim()}:  ${expensesObject[key].amount > 0 ? "+" : ""}${formatMoney(expensesObject[key].currency, expensesObject[key].amount)}\n`;
-    }
-    text += "\n<i>➕ Sizdan qarz, ➖ Siz qarzsiz</i>";
+    const inlineKeys = [];
 
-    this.sendMessage(user, text, { keys: expenseKeys });
+    expenses.map(({ name, currency, amount, _id }, i) => {
+      inlineKeys.push({ text: i + 1, callback_data: `HISTORY ${_id}` });
+      text += `${i + 1}. ${name.trim()}:  ${amount > 0 ? "+" : ""}${formatMoney(currency, amount)}\n`;
+    });
+
+    text += "\n<i>➕ Sizdan qarz, ➖ Siz qarzsiz</i> \n\n <i>Qarzlar tarixini ko'rish uchun tanlang:</i>";
+
+    this.sendMessage(user, text, { keys: _.chunk(inlineKeys, 4), isInline: true });
   };
 
   clickActiveExpenseList = async (user, pageNumber = 0, msgId) => {
@@ -208,33 +197,18 @@ class QarzerBot {
     this.sendMessage(user, text, { keys: inlineKeys, isInline: true, editMsgId: msgId });
   };
 
-  clickPaidExpenses = async (user, pageNumber = 0, msgId) => {
-    const pageCount = 5;
-    const expenses = await Expense.find({ status: "paid", $or: [{ relatedTo: user._id }, { creatorId: user._id }] })
-      .limit(pageCount)
-      .skip(pageNumber * pageCount)
-      .populate("creatorId relatedTo", "firstName lastName chatId");
+  clickPayExpense = async (user) => {
+    let expenses = await this.getMyExpenses(user);
+    expenses = _.filter(expenses, (val) => val.amount < 0);
 
-    let text = "💸<b>Siz to'lagan va sizga to'langan qarzlar royxati: </b>\n\n";
-    if (pageNumber === 0 && !expenses.length) return this.sendMessage(user, "💸<b>Siz to'lagan va sizga to'langan qarzlar hali mavjud emas!</b>\n\n", { keys: expenseKeys });
+    if (!expenses.length) return this.sendMessage(user, "Hozirda siz qarzdor emassiz!", { keys: expenseKeys });
+    const inlineKeys = [];
 
-    expenses.forEach((exp, i) => {
-      const isCreatorMe = exp.creatorId.chatId === user.chatId;
-
-      text += `${pageNumber * pageCount + i + 1}. ${isCreatorMe ? "📥" : "📤"}<b>${formatMoney(exp.currency, exp.amount)}</b>\n`;
-      text += ` Kim to'ladi: <a href="tg://user?id=${exp.relatedTo.chatId}">${isCreatorMe ? getFullName(exp.relatedTo) : "Siz"}</a>\n`;
-      text += ` Kimga to'landi: <a href="tg://user?id=${exp.creatorId.chatId}">${isCreatorMe ? "Sizga" : getFullName(exp.creatorId)}</a>\n`;
-      text += ` Sharx: ${exp.description}\n`;
-      text += ` <i> 🕧${moment(exp.createdAt).format("DD.MM.YYYY HH:mm")}</i>\n\n`;
+    expenses.map((expense) => {
+      inlineKeys.push([{ text: `${expense.name} ${formatMoney(expense.currency, expense.amount)}`, callback_data: `PAY_EXPENSE ${expense._id}` }]);
     });
 
-    this.sendMessage(user, text, { keys: expenseKeys, editMsgId: msgId });
-  };
-
-  clickResetAccount = async (user) => {
-    const group = await Group.findById(user.currentGroupId).populate("members");
-    const inlineKeys = group.members.filter((_) => String(_._id) != String(user._id)).map((member) => [{ text: getFullName(member), callback_data: "RESET_ACCOUNT_PARTNER " + String(member._id) }]);
-    this.sendMessage(user, "Kim bilan o'rtangizdagi qarzlarni no'llashtirmoqchisiz?", { keys: inlineKeys, isInline: true });
+    this.sendMessage(user, "Sizning qarzlaringiz, kimga to'lamoqchiligingizni tanlang:", { keys: inlineKeys, isInline: true });
   };
 
   clickGroupMenu(user) {
@@ -258,13 +232,12 @@ class QarzerBot {
       .then((groups) => {
         const currentGroup = groups.find((g) => String(g._id) === String(user.currentGroupId));
 
-        let listMessage = `<b>Joriy Guruhingiz: <code>${currentGroup.name}</code></b> \n\n`;
-        if (String(currentGroup.creatorId) === String(user._id)) listMessage += `<b>Gruh maxfiy raqami: <code>${currentGroup._id}</code></b> \n\n`;
+        let listMessage = `<b>${currentGroup.name}</b>\n\n`;
+        listMessage += `Pul birligi: <b>${currentGroup.currency}</b>\n`;
+        listMessage += `Maxfiy raqami: <code>${currentGroup._id}</code>\n\n`;
 
         if (groups.length > 1) listMessage += "Almashtirish uchun quidagi guruhlaringizdan birini tanlang:";
-
         const inlineKeys = groups.filter((g) => String(g._id) !== String(user.currentGroupId)).map((group) => [{ text: group.name, callback_data: "CURRENT_GROUP " + String(group._id) }]);
-
         this.sendMessage(user, listMessage, { keys: inlineKeys, isInline: true });
       })
       .catch((err) => console.log(err));
@@ -288,9 +261,9 @@ class QarzerBot {
     Group.findById(user.currentGroupId)
       .populate("members")
       .then((group) => {
-        let listMessage = `👥<b><code>${group.name}</code> - azolari:</b> \n`;
         const creator = group.members?.find((user) => String(user._id) === String(group.creatorId));
-        listMessage += `\n<i>Guruh yaratuvchisi:</i> ${getFullName(creator)}\n\n`;
+
+        let listMessage = `<b>${group.name}</b>\n\n`;
 
         group.members?.forEach((user, index) => {
           listMessage += `${index + 1}. <a href="tg://user?id=${user.chatId || user.userName}">${getFullName(user)}</a>\n`;
@@ -300,8 +273,10 @@ class QarzerBot {
   }
 
   clickBack(user) {
-    if (user.incomplatedExpense.amount) user.incomplatedExpense = { debtors: [] };
+    if (user.incomplatedExpense.amount || user.incomplatedExpense.description) user.incomplatedExpense = { debtors: [] };
     if (user.incomplatedGroupName) user.incomplatedGroupName = "";
+    if (user.payExpenseAmount) user.payExpenseAmount = undefined;
+    if (user.payExpenseTo) user.payExpenseTo = undefined;
 
     user.botStep = "";
     user.save().then(() => this.sendMessage(user, "🏠 Asosiy bo'lim!"));
@@ -322,14 +297,35 @@ class QarzerBot {
     user.save();
   }
 
+  async getMyExpenses(user) {
+    const expenses = await Expense.find({ status: "active", $or: [{ creatorId: user._id }, { relatedTo: user._id }] }).populate("creatorId relatedTo", "firstName lastName chatId");
+    const expensesObject = {};
+
+    const { currency, members } = await Group.findById(user.currentGroupId).populate("members");
+    members.forEach((member) => {
+      if (String(member._id) !== String(user._id)) expensesObject[member.chatId] = { name: getFullName(member), _id: member._id, currency, amount: 0 };
+    });
+
+    expenses.forEach((exp) => {
+      if (exp.creatorId.chatId === user.chatId) {
+        if (expensesObject[exp.relatedTo.chatId]) expensesObject[exp.relatedTo.chatId].amount += exp.amount;
+      } else {
+        if (expensesObject[exp.creatorId.chatId]) expensesObject[exp.creatorId.chatId].amount -= exp.amount;
+      }
+    });
+
+    return Object.values(expensesObject);
+  }
+
   messageOptions(keys, isInline = false, withoutKey = false) {
     const opts = {
       parse_mode: "HTML",
       reply_markup: {
         resize_keyboard: true,
-        one_time_keyboard: true,
+        // one_time_keyboard: true,
       },
     };
+
     if (withoutKey) return opts;
 
     if (!isInline) opts.reply_markup.keyboard = keys;
@@ -337,6 +333,40 @@ class QarzerBot {
 
     return opts;
   }
+
+  sendMessage(user, message, { keys = mainKeys, isInline = false, chatId, withoutKey = false, editMsgId = null } = {}) {
+    chatId = chatId || user.chatId;
+
+    let options = this.messageOptions(keys, isInline, withoutKey);
+    if (!user.currentGroupId) options = this.messageOptions(noCurrentGroupKeys);
+    if (editMsgId) this.bot.editMessageText(message, { chat_id: chatId, message_id: editMsgId, ...options });
+    else this.bot.sendMessage(chatId, message, options);
+  }
+
+  enterPayExpenseAmount = async (user, amount) => {
+    if (amount !== "ALL" && (!_.isNumber(+amount) || _.isNaN(+amount) || amount <= 0)) return this.sendMessage(user, "Pul miqdori xato kiritilgan, iltimos qaytadan kiriting❗️", { keys: onlyHomePageKey });
+    const partnerId = user.payExpenseTo;
+
+    User.findById(partnerId)
+      .then((partner) => {
+        const inlineKeys = [
+          [
+            { text: "❌ Bekor qilish", callback_data: `PAY_EXPENSE_REJECTED ${user._id}` },
+            { text: "✅ Tasdiqlash", callback_data: `PAY_EXPENSE_ACCEPTED ${user._id}` },
+          ],
+        ];
+
+        const msgForPartner = `<a href="tg://user?id=${user.chatId}">${getFullName(user)}</a> sizga ${amount === "ALL" ? "hamma" : formatMoney("UZS", +amount)} qarzini to'laganligini tasdiqlaysizmi`;
+        const msg = `<b>⏳Sizning to'lovingiz <a href="tg://user?id=${partner.chatId}">${getFullName(partner)}</a> ga yuborildi.</b>\n\n<i>To'lov tasdiqlanishini kuting!</i>`;
+
+        this.sendMessage(user, msgForPartner, { keys: inlineKeys, chatId: partner.chatId, isInline: true });
+
+        user.botStep = "";
+        user.payExpenseAmount = amount + "";
+        user.save().then(() => this.sendMessage(user, msg));
+      })
+      .catch(() => {});
+  };
 
   enterExpensAmount = async (user, amount) => {
     if (!_.isNumber(+amount) || _.isNaN(+amount) || amount <= 0) return this.sendMessage(user, "Pul miqdori xato kiritilgan, iltimos qaytadan kiriting❗️", { keys: onlyHomePageKey });
@@ -425,15 +455,6 @@ class QarzerBot {
       });
   }
 
-  sendMessage(user, message, { keys = mainKeys, isInline = false, chatId, withoutKey, editMsgId = null } = {}) {
-    chatId = chatId || user.chatId;
-    let options = this.messageOptions(keys, isInline, withoutKey);
-    if (!user.currentGroupId) options = this.messageOptions(noCurrentGroupKeys);
-
-    if (editMsgId) this.bot.editMessageText(message, { chat_id: chatId, message_id: editMsgId, ...options });
-    else this.bot.sendMessage(chatId, message, options);
-  }
-
   // CALLBACK QUEARY FUNCTIONS
   changeCurrentGroup = (user, query) => {
     // CURRENT_GROUP
@@ -444,6 +465,7 @@ class QarzerBot {
       this.bot.deleteMessage(query.from.id, query.message.message_id).then(() => this.sendMessage(user, `Joriy guruhingiz muvaffaqqiyatli o'zgartirildi!`));
     });
   };
+
   chooseDebtors = async (user, query, isBeforeChoosed) => {
     // CHOOSE_DEBTOR
     // REMOVE_DEBTOR
@@ -481,6 +503,7 @@ class QarzerBot {
     }
     user.save().then(() => this.displayChooseDeptors(user, user.incomplatedExpense.debtors, msgId));
   };
+
   chooseDistributionType = async (user, query) => {
     const type = query.data.slice(-1);
     const msgId = query.message.message_id;
@@ -511,6 +534,7 @@ class QarzerBot {
 
     this.sendMessage(user, text, { keys: inlineKeys, isInline: true });
   };
+
   createExpense = async (user, query) => {
     const expenses = user.incomplatedExpense.debtors?.map((debtorId) => ({
       amount: user.incomplatedExpense.amountForOneDebtor,
@@ -533,34 +557,13 @@ class QarzerBot {
         .populate("relatedTo", "chatId")
         .then((newExps) => {
           newExps.map((item) => {
-            const expensText = `📨 Sizga yangi qarz biriktirildi:\n\n💆‍♂️Kimdan: <a href="tg://user?id=${user.chatId}">${getFullName(user)}</a>\n💵Qarz miqdori: <code>${formatMoney(item.currency, item.amount)}</code>\n📃Sharx: <code>${
-              item.description
-            }</code>`;
+            const expensText = `📨 Sizga yangi qarz biriktirildi:\n\n💆‍♂️Kimdan: <a href="tg://user?id=${user.chatId}">${getFullName(user)}</a>\n💵Qarz miqdori: ${formatMoney(item.currency, item.amount)}\n📃Sharx: ${item.description}`;
             this.sendMessage(user, expensText, { chatId: item.relatedTo.chatId });
           });
         });
     });
   };
-  mySingleExpense = async (user, query) => {
-    // MY_EXPENSE
-    const expensId = query.data.slice(11);
-    const msgId = query.message.message_id;
-    const expense = await Expense.findById(expensId).populate("relatedTo");
 
-    let text = `<b>Qarz: ${formatMoney(expense.currency, expense.amount)}</b>\n`;
-    text += `Qarzdor: <a href="tg://user?id=${expense.relatedTo.chatId}">${getFullName(expense.relatedTo)}</a>\n`;
-    text += `Sharx: ${expense.description}\n`;
-    text += `<i>🕧 ${moment(expense.createdAt).format("DD.MM.YYYY HH:mm")}</i>\n\n`;
-
-    const inlineKeys = [
-      [
-        { text: "🔔 Eslatish", callback_data: `REMINDER ${expensId}` },
-        { text: "✅ To'landi", callback_data: `PAID ${expensId}` },
-      ],
-      [{ text: "❌", callback_data: `DELETE_MSG ${msgId}` }],
-    ];
-    this.bot.answerCallbackQuery(query.id).then(() => this.sendMessage(user, text, { keys: inlineKeys, isInline: true }));
-  };
   reminderExpense = async (user, query) => {
     // REMINDER
     const expensId = query.data.slice(9);
@@ -577,6 +580,7 @@ class QarzerBot {
     this.sendMessage(user, text, { chatId: expense.relatedTo.chatId });
     this.bot.answerCallbackQuery(query.id).then(() => this.sendMessage(user, `Qarzdorga ushbu eslatmangiz yuborildi: \n <pre>${message}</pre>`, { keys: expenseKeys }));
   };
+
   changeToPaid = async (user, query) => {
     const msgId = query.message.message_id;
 
@@ -585,55 +589,109 @@ class QarzerBot {
     this.bot.deleteMessage(user.chatId, msgId).then(() => this.sendMessage(user, `Qarz "To'langan qarzlar" bo'limiga muvaffaqqiyatli o'tkazildi!`, { keys: expenseKeys }));
   };
 
-  choosedReasetAccountPartner = async (user, query) => {
-    const partnerId = query.data.replace("RESET_ACCOUNT_PARTNER ", "");
-
-    User.findById(partnerId)
-      .then((partner) => {
-        const inlineKeys = [
-          [
-            { text: "❌ Bekor qilish", callback_data: `RESET_ACCOUNT_REJECTED ${user._id}` },
-            { text: "✅ Tasdiqlash", callback_data: `RESET_ACCOUNT_ACCEPTED ${user._id}` },
-          ],
-        ];
-        const msgForPartner = `<a href="tg://user?id=${user.chatId}">${getFullName(user)}</a> o'rtangizdagi qarzlarni no'llashtirmoqchi, \n\n<b>o'rtangizda qarzlar qolmaganligini tasdiqlaysizmi?</b>`;
-        const msg = `<b>⏳Sizning so'rovingiz <a href="tg://user?id=${partner.chatId}">${getFullName(partner)}</a> ga yuborildi.</b>\n\n<i>So'rovungiz tasdiqlangandan so'ng o'rtangizdagi qarzlar o'chiriladi!</i>`;
-
-        this.sendMessage(user, msgForPartner, { keys: inlineKeys, chatId: partner.chatId, isInline: true });
-        this.bot.answerCallbackQuery(query.id).then(() => this.sendMessage(user, msg));
-      })
-      .catch(() => {});
-  };
-
-  resetAccountWithRejected = (user, query) => {
-    const partnerId = query.data.replace("RESET_ACCOUNT_REJECTED ", "");
+  payExpenseRejected = (user, query) => {
+    const partnerId = query.data.replace("PAY_EXPENSE_REJECTED ", "");
     const msgId = query.message.message_id;
+
+    console.log("keldi");
 
     User.findById(partnerId)
       .then((partner) => {
         this.bot.deleteMessage(user.chatId, msgId);
-        const msg = `🔴 <a href="tg://user?id=${user.chatId}">${getFullName(user)}</a> qarzlarni no'llashtirish so'rovingizni rad etdi!`;
-        this.sendMessage(user, msg, { withoutKey: true, chatId: partner.chatId });
+        const msg = `🔴 <a href="tg://user?id=${user.chatId}">${getFullName(user)}</a> sizning to'lovingizni rad etdi!`;
+        console.log(msg);
+        partner.payExpenseAmount = "";
+        partner.save().then(() => this.sendMessage(user, msg, { withoutKey: true, chatId: partner.chatId }));
+        console.log(msg);
       })
       .catch(() => {});
   };
 
-  resetAccountWithAccepted = async (user, query) => {
-    const partnerId = query.data.replace("RESET_ACCOUNT_ACCEPTED ", "");
+  payExpenseAccepted = async (user, query) => {
+    const partnerId = query.data.replace("PAY_EXPENSE_ACCEPTED ", "");
     const msgId = query.message.message_id;
+
+    const complated = (partner) => {
+      const msgToPartner = `🟢 <a href="tg://user?id=${user.chatId}">${getFullName(user)}</a> to'lovingiz qabul qilindi!`;
+      const msg = `🟢Siz <a href="tg://user?id=${partner.chatId}">${getFullName(partner)}</a> to'lovini qabul qilindingiz!`;
+
+      this.bot.deleteMessage(user.chatId, msgId);
+      this.sendMessage(user, msgToPartner, { withoutKey: true, chatId: partner.chatId });
+      this.sendMessage(user, msg, { withoutKey: true });
+    };
 
     User.findById(partnerId)
       .then((partner) => {
-        Expense.updateMany({ status: "active", $and: [{ $or: [{ creatorId: user._id }, { creatorId: partnerId }] }, { $or: [{ relatedTo: user._id }, { relatedTo: partnerId }] }] }, { status: "paid" }).then(() => {
-          const msgToPartner = `🟢 <a href="tg://user?id=${user.chatId}">${getFullName(user)}</a> qarzlarni no'llashtirish so'rovingizni qabul qildi va o'rtangizdagi qarzlar o'chirildi!`;
-          const msg = `🟢 <a href="tg://user?id=${partner.chatId}">${getFullName(partner)}</a> bilan o'rtangizdagi qarzlar muvaffaqiyatli o'chirildi!`;
+        if (partner.payExpenseAmount === "ALL")
+          Expense.updateMany({ status: "active", $and: [{ $or: [{ creatorId: user._id }, { creatorId: partnerId }] }, { $or: [{ relatedTo: user._id }, { relatedTo: partnerId }] }] }, { status: "paid" }).then(() => {
+            complated(partner);
+          });
+        else {
+          const expense = {
+            amount: +partner.payExpenseAmount,
+            groupId: user.currentGroupId,
+            creatorId: partner._id,
+            currency: "UZS",
+            status: "active",
+            description: "QARZ TO'LOVI",
+            relatedTo: user._id,
+          };
 
-          this.bot.deleteMessage(user.chatId, msgId);
-          this.sendMessage(user, msgToPartner, { withoutKey: true, chatId: partner.chatId });
-          this.sendMessage(user, msg, { withoutKey: true });
-        });
+          Expense.create(expense).then(() => {
+            complated(partner);
+          });
+        }
       })
       .catch(() => {});
+  };
+
+  expenseHistory = async (user, query) => {
+    const pageCount = 7;
+    const [name, partnerId, pageNumber = 0] = query.data.split(" ");
+
+    const msgId = query.message.message_id;
+    const findQuery = { $and: [{ $or: [{ creatorId: user._id }, { creatorId: partnerId }] }, { $or: [{ relatedTo: user._id }, { relatedTo: partnerId }] }] };
+
+    const expenses = await Expense.find(findQuery)
+      .limit(pageCount)
+      .skip(pageNumber * pageCount)
+      .sort({ createdAt: -1 })
+      .populate("creatorId relatedTo", "firstName lastName chatId");
+
+    const total = await Expense.countDocuments(findQuery);
+
+    const partner = _.isEqual(String(expenses[0]?.relatedTo._id), partnerId) ? expenses[0]?.relatedTo : expenses[0]?.creatorId;
+
+    let text = `<b>${getFullName(partner)} bilan o'rtangizdagi qarzlar tarixi</b>\n\n`;
+
+    expenses.forEach((exp, i) => {
+      text += `${pageNumber * pageCount + i + 1}. ${_.isEqual(exp.creatorId._id, user._id) ? "📥 Sizdan" : "📤 Siz"}\n`;
+      text += `💵 <b>${_.isEqual(exp.creatorId._id, user._id) ? "➕" : "➖"}${formatMoney(exp.currency, exp.amount)}</b>\n`;
+      text += `📃 ${exp.description}\n`;
+      text += `<i>🕧${moment(exp.createdAt).format("DD.MM.YYYY")}</i>\n\n`;
+    });
+
+    const inlineKeys = [[]];
+    if (pageNumber > 0) inlineKeys[0].push({ text: "◀️", callback_data: `HISTORY ${partnerId} ${+pageNumber - 1}` });
+    inlineKeys[0].push({ text: "❌", callback_data: `DELETE_MSG ${msgId}` });
+    if ((pageNumber + 1) * pageCount < total) inlineKeys[0].push({ text: "▶️", callback_data: `HISTORY ${partnerId} ${+pageNumber + 1}` });
+
+    this.sendMessage(user, text, { keys: inlineKeys, isInline: true, editMsgId: pageNumber === 0 ? undefined : msgId });
+  };
+
+  payExpense = async (user, query) => {
+    const [name, partnerId] = query.data.split(" ");
+    const msgId = query.message.message_id;
+
+    if (partnerId === "ALL") {
+      this.bot.deleteMessage(user.chatId, msgId);
+      return this.enterPayExpenseAmount(user, "ALL");
+    }
+
+    await User.findByIdAndUpdate(user._id, { payExpenseTo: partnerId, botStep: botSteps.payExpenseAmount });
+    const inlineKeys = [[{ text: "Hammasi", callback_data: "PAY_EXPENSE ALL" }]];
+    console.log(user._id, { payExpenseTo: partnerId, botStep: botSteps.payExpenseAmount });
+    this.sendMessage(user, "To'lamoqchi bo'lgan pul miqdorini kiriting, yoki tanlang: ", { keys: inlineKeys, isInline: true, editMsgId: msgId });
   };
 }
 

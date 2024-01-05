@@ -7,46 +7,44 @@ const keys = {
 
   // MAIN KEYS
   createExpens: "➕ Qarz yaratish",
+  payExpense: "💵 Qarz to'lash",
   myExpenses: "📊 Qarzlarim",
-  joinGroup: "🤝 Guruhga qo'shilish",
-  group: "Guruh sozlamalari ➡️",
+  group: "⚙️ Guruh sozlamalari",
 
   //GROUP
   createGroup: "➕ Guruh yaratish",
+  joinGroup: "🤝 Guruhga qo'shilish",
   myGroups: "📋 Mening guruhlarim",
   currentGroup: "📌 Joriy guruhim",
   members: "👥 Guruh azolari",
   homePage: "🔙 Asosiy bo'lim",
-
-  // Expense types
-  activeExpense: "🕧 To'lanmagan",
-  paidExpense: "✅ To'langan",
-  createdByMe: "💰 Mening harajatlarim",
-  resetAccount: "🔄 Hisobni yangilash",
 };
 
 module.exports.botSteps = {
   joinGroup: "JOIN_TO_GROUP",
   groupName: "GROUP_NAME",
   groupCurrency: "GROUP_CURRENCY",
-  expensAmount: "EXPENS_AMOUNT",
+  expensAmount: "EXPENSE_AMOUNT",
   expensDescription: "EXPENS_DESCRIPTION",
   expensType: "EXPENS_TYPE",
   distributionType: "DISTRIBUTATION",
   chooseDebtors: "CHOOSE_DEBTORS",
+  payExpenseAmount: "PAY_EXPENSE_AMOUNT",
 };
 
 module.exports.keys = keys;
 
 module.exports.mainKeys = [
-  [keys.createExpens, keys.myExpenses],
-  [keys.currentGroup, keys.group],
+  [keys.createExpens, keys.payExpense],
+  [keys.myExpenses, keys.group],
 ];
 
 module.exports.onlyHomePageKey = [[keys.homePage]];
 
 module.exports.noCurrentGroupKeys = [[keys.joinGroup, keys.createGroup]];
 
-module.exports.expenseKeys = [[keys.activeExpense, keys.paidExpense], [keys.createdByMe, keys.resetAccount], [keys.homePage]];
-
-module.exports.groupKeys = [[keys.createGroup, keys.myGroups], [keys.members, keys.joinGroup], [keys.homePage]];
+module.exports.groupKeys = [
+  [keys.createGroup, keys.joinGroup],
+  [keys.currentGroup, keys.myGroups],
+  [keys.members, keys.homePage],
+];
