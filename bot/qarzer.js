@@ -30,6 +30,7 @@ class QarzerBot {
     if (user.botStep === botSteps.groupName) return this.enterGroupName(user, message);
     if (user.botStep === botSteps.groupCurrency) return this.enterGroupCurrency(user, message);
     if (user.botStep === botSteps.joinGroup) return this.joinGroup(user, message);
+    if (user.botStep === botSteps.changeUserName) return this.changeUserName(user, message);
 
     // creating expense steps
     if (user.botStep === botSteps.expensDescription) return this.enterExpensDesc(user, message);
@@ -72,6 +73,9 @@ class QarzerBot {
         break;
       case keys.members:
         this.clickGroupMembers(user);
+        break;
+      case keys.change_name:
+        this.clickChangeName(user);
         break;
       case keys.clear:
         this.clickClear(msg);
@@ -272,6 +276,11 @@ class QarzerBot {
       });
   }
 
+  clickChangeName(user) {
+    user.botStep = botSteps.changeUserName;
+    user.save().then(() => this.sendMessage(user, "✏️ Ism familyangizni kiriting: \n\n <i>Misol: Alisher O'rolov</i>", { keys: onlyHomePageKey }));
+  }
+
   clickBack(user) {
     if (user.incomplatedExpense.amount || user.incomplatedExpense.description) user.incomplatedExpense = { debtors: [] };
     if (user.incomplatedGroupName) user.incomplatedGroupName = "";
@@ -385,13 +394,13 @@ class QarzerBot {
     user.save();
   }
 
-  displayChooseDeptors(user, choosedIds, msgId) {
+  displayChooseDeptors(user, choosedIds = [], msgId) {
     Group.findById(user.currentGroupId)
       .populate("members")
       .then(({ members }) => {
         let inlineKeys;
 
-        if (choosedIds?.find((id) => id === "ALL")) {
+        if (choosedIds.includes("ALL")) {
           inlineKeys = [[{ text: `ALL ✅`, callback_data: "REMOVE_DEBTOR ALL" }]];
         } else {
           inlineKeys = members
@@ -408,10 +417,7 @@ class QarzerBot {
           inlineKeys.push([{ text: "Davom ettirish ➡️", callback_data: "CHOOSE_DEBTOR DONE" }]);
         }
 
-        if (msgId) {
-          this.bot.deleteMessage(user.chatId, msgId);
-        }
-        this.sendMessage(user, "Qarzdorlarni tanlang:", { keys: inlineKeys, isInline: true });
+        this.sendMessage(user, "Qarzdorlarni tanlang:", { keys: inlineKeys, isInline: true, editMsgId: msgId });
       });
   }
 
@@ -453,6 +459,15 @@ class QarzerBot {
         user.save();
         this.sendMessage(user, "Bunday guruh topilmadi!");
       });
+  }
+
+  changeUserName(user, message) {
+    if (!message || message.length < 3) return this.sendMessage(user, "Ism familyani xato kiritdingiz, iltimos qaytadan kiriting!", { keys: onlyHomePageKey });
+    const [firstName, lastName] = message.split(" ");
+    user.firstName = firstName?.trim();
+    user.lastName = lastName?.trim();
+    user.botStep = "";
+    user.save().then(() => this.sendMessage(user, `Ism familyangiz <code>${getFullName(user)}</code> ga o'zgartirildi!`));
   }
 
   // CALLBACK QUEARY FUNCTIONS
@@ -646,7 +661,7 @@ class QarzerBot {
   };
 
   expenseHistory = async (user, query) => {
-    const pageCount = 7;
+    const pageCount = 4;
     const [name, partnerId, pageNumber = 0] = query.data.split(" ");
 
     const msgId = query.message.message_id;
@@ -674,8 +689,9 @@ class QarzerBot {
     const inlineKeys = [[]];
     if (pageNumber > 0) inlineKeys[0].push({ text: "◀️", callback_data: `HISTORY ${partnerId} ${+pageNumber - 1}` });
     inlineKeys[0].push({ text: "❌", callback_data: `DELETE_MSG ${msgId}` });
-    if ((pageNumber + 1) * pageCount < total) inlineKeys[0].push({ text: "▶️", callback_data: `HISTORY ${partnerId} ${+pageNumber + 1}` });
+    if ((+pageNumber + 1) * pageCount < total) inlineKeys[0].push({ text: "▶️", callback_data: `HISTORY ${partnerId} ${+pageNumber + 1}` });
 
+    if (pageNumber === 0) await this.bot.answerCallbackQuery(query.id);
     this.sendMessage(user, text, { keys: inlineKeys, isInline: true, editMsgId: pageNumber === 0 ? undefined : msgId });
   };
 
