@@ -1,5 +1,6 @@
 const _ = require("lodash");
 const TelegramBot = require("node-telegram-bot-api");
+const cron = require("node-cron");
 
 const User = require("../models/user");
 const Group = require("../models/group");
@@ -14,6 +15,10 @@ class QarzerBot {
     this.bot = new TelegramBot(TG_TOKEN, { polling: true });
     this.bot.on("message", this.onMessage);
     this.bot.on("callback_query", this.onCallBackQuery);
+
+    cron.schedule("*/10 * * * *", () => {
+      this.bot.sendMessage("6240231211", "Hello!");
+    });
   }
 
   // MESSAGE HANDLER
