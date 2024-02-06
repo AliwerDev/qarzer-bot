@@ -5,6 +5,7 @@ const keys = {
   menu: "/menu",
   home: "/home",
   change_name: "/change_name",
+  message: "/message",
 
   // MAIN KEYS
   createExpens: "➕ Qarz yaratish",
@@ -32,6 +33,7 @@ module.exports.botSteps = {
   chooseDebtors: "CHOOSE_DEBTORS",
   payExpenseAmount: "PAY_EXPENSE_AMOUNT",
   changeUserName: "CHANGE_USER_NAME",
+  message: "MESSAGE",
 };
 
 module.exports.keys = keys;

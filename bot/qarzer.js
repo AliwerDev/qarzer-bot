@@ -1,6 +1,5 @@
 const _ = require("lodash");
 const TelegramBot = require("node-telegram-bot-api");
-const cron = require("node-cron");
 
 const User = require("../models/user");
 const Group = require("../models/group");
@@ -15,10 +14,6 @@ class QarzerBot {
     this.bot = new TelegramBot(TG_TOKEN, { polling: true });
     this.bot.on("message", this.onMessage);
     this.bot.on("callback_query", this.onCallBackQuery);
-
-    cron.schedule("*/10 * * * *", () => {
-      this.bot.sendMessage("6240231211", "Hello!");
-    });
   }
 
   // MESSAGE HANDLER
@@ -36,6 +31,7 @@ class QarzerBot {
     if (user.botStep === botSteps.groupCurrency) return this.enterGroupCurrency(user, message);
     if (user.botStep === botSteps.joinGroup) return this.joinGroup(user, message);
     if (user.botStep === botSteps.changeUserName) return this.changeUserName(user, message);
+    if (user.botStep === botSteps.message) return this.sendMessageToGroup(user, message);
 
     // creating expense steps
     if (user.botStep === botSteps.expensDescription) return this.enterExpensDesc(user, message);
@@ -81,6 +77,9 @@ class QarzerBot {
         break;
       case keys.change_name:
         this.clickChangeName(user);
+        break;
+      case keys.message:
+        this.sendMessageToGroup(user);
         break;
       case keys.clear:
         this.clickClear(msg);
@@ -474,6 +473,23 @@ class QarzerBot {
     user.botStep = "";
     user.save().then(() => this.sendMessage(user, `Ism familyangiz <code>${getFullName(user)}</code> ga o'zgartirildi!`));
   }
+
+  sendMessageToGroup = async (user, message) => {
+    if (message === undefined) {
+      user.botStep = botSteps.message;
+      user.save();
+      return this.sendMessage(user, "Guruh foydalanuvchilariga yubormoqchi bolgan xabaringizni yozing:", { keys: onlyHomePageKey });
+    }
+    if (!_.isString(message)) return;
+    const { members } = await Group.findOne({ _id: user.currentGroupId }).populate("members");
+    for (const member of members) {
+      if (member.chatId === user.chatId) continue;
+      this.sendMessage(user, message, { chatId: member.chatId });
+    }
+    user.botStep = "";
+    user.save();
+    return this.sendMessage(user, "Habar yuborildi!");
+  };
 
   // CALLBACK QUEARY FUNCTIONS
   changeCurrentGroup = (user, query) => {
