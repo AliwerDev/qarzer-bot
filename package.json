@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "build": "esbuild index.js --bundle --platform=node --outfile=server-out.js"
   },
   "author": "",
   "license": "ISC",
@@ -14,11 +15,11 @@
     "@types/node-telegram-bot-api": "^0.63.3"
   },
   "dependencies": {
+    "esbuild": "^0.20.0",
     "lodash": "^4.17.21",
     "moment": "^2.29.4",
     "money-formatter": "^0.1.4",
     "mongoose": "^8.0.2",
-    "node-cron": "^3.0.3",
     "node-json-db": "^2.3.0",
     "node-telegram-bot-api": "^0.64.0"
   }

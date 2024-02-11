@@ -33,7 +33,6 @@ module.exports.botSteps = {
   chooseDebtors: "CHOOSE_DEBTORS",
   payExpenseAmount: "PAY_EXPENSE_AMOUNT",
   changeUserName: "CHANGE_USER_NAME",
-  message: "MESSAGE",
 };
 
 module.exports.keys = keys;

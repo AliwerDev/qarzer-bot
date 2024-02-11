@@ -31,7 +31,6 @@ class QarzerBot {
     if (user.botStep === botSteps.groupCurrency) return this.enterGroupCurrency(user, message);
     if (user.botStep === botSteps.joinGroup) return this.joinGroup(user, message);
     if (user.botStep === botSteps.changeUserName) return this.changeUserName(user, message);
-    if (user.botStep === botSteps.message) return this.sendMessageToGroup(user, message);
 
     // creating expense steps
     if (user.botStep === botSteps.expensDescription) return this.enterExpensDesc(user, message);
@@ -39,6 +38,7 @@ class QarzerBot {
 
     // pay expense steps
     if (user.botStep === botSteps.payExpenseAmount) return this.enterPayExpenseAmount(user, message);
+    if (_.startsWith(message, keys.message)) return this.sendMessageToGroup(user, message);
 
     // CHECKING MESSAGE
     switch (message) {
@@ -77,9 +77,6 @@ class QarzerBot {
         break;
       case keys.change_name:
         this.clickChangeName(user);
-        break;
-      case keys.message:
-        this.sendMessageToGroup(user);
         break;
       case keys.clear:
         this.clickClear(msg);
@@ -125,7 +122,7 @@ class QarzerBot {
 
   clickCreateExpens = async (user) => {
     const group = await Group.findById(user.currentGroupId);
-    if (group.members?.length <= 1) {
+    if (group?.members?.length <= 1) {
       let alert = "Qarz yaratish uchun guruhda kamida 2 kishi bo'lishi kerak!\n\n";
       if (String(group.creatorId) === String(user._id)) alert += `Guruhga dostlaringizni taklif qilish uchun maxfiy raqam: <code>${group._id}</code>`;
       return this.sendMessage(user, alert);
@@ -443,7 +440,7 @@ class QarzerBot {
         user.currentGroupId = g._id;
         user.botStep = "";
         user.save();
-        this.sendMessage(user, `<code>"${g.name}"</code> - guruh muvaffaqqiyatli yaratildi va joriy guruhingiz qilib belgilandi!`);
+        this.sendMessage(user, `<code>"${g.name}"</code> - guruh muvaffaqqiyatli yaratildi va joriy guruhingiz qilib belgilandi!\n\n<i>Maxfiy raqam: <code>${g._id}</code></i>`);
       })
       .catch((err) => console.log(err));
   }
@@ -475,16 +472,13 @@ class QarzerBot {
   }
 
   sendMessageToGroup = async (user, message) => {
-    if (message === undefined) {
-      user.botStep = botSteps.message;
-      user.save();
-      return this.sendMessage(user, "Guruh foydalanuvchilariga yubormoqchi bolgan xabaringizni yozing:", { keys: onlyHomePageKey });
-    }
+    message = _.trim(message.slice(8));
+
     if (!_.isString(message)) return;
     const { members } = await Group.findOne({ _id: user.currentGroupId }).populate("members");
     for (const member of members) {
       if (member.chatId === user.chatId) continue;
-      this.sendMessage(user, message, { chatId: member.chatId });
+      this.sendMessage(user, `${getFullName(user)}: ${message}`, { chatId: member.chatId });
     }
     user.botStep = "";
     user.save();
