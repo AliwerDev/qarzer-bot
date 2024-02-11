@@ -629,16 +629,12 @@ class QarzerBot {
     const partnerId = query.data.replace("PAY_EXPENSE_REJECTED ", "");
     const msgId = query.message.message_id;
 
-    console.log("keldi");
-
     User.findById(partnerId)
       .then((partner) => {
         this.bot.deleteMessage(user.chatId, msgId);
         const msg = `🔴 <a href="tg://user?id=${user.chatId}">${getFullName(user)}</a> sizning to'lovingizni rad etdi!`;
-        console.log(msg);
         partner.payExpenseAmount = "";
         partner.save().then(() => this.sendMessage(user, msg, { withoutKey: true, chatId: partner.chatId }));
-        console.log(msg);
       })
       .catch(() => {});
   };
@@ -682,7 +678,7 @@ class QarzerBot {
   };
 
   expenseHistory = async (user, query) => {
-    const pageCount = 4;
+    const pageCount = 10;
     const [name, partnerId, pageNumber = 0] = query.data.split(" ");
 
     const msgId = query.message.message_id;
@@ -727,7 +723,6 @@ class QarzerBot {
 
     await User.findByIdAndUpdate(user._id, { payExpenseTo: partnerId, botStep: botSteps.payExpenseAmount });
     const inlineKeys = [[{ text: "Hammasi", callback_data: "PAY_EXPENSE ALL" }]];
-    console.log(user._id, { payExpenseTo: partnerId, botStep: botSteps.payExpenseAmount });
     this.sendMessage(user, "To'lamoqchi bo'lgan pul miqdorini kiriting, yoki tanlang: ", { keys: inlineKeys, isInline: true, editMsgId: msgId });
   };
 }
