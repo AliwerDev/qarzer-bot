@@ -9,8 +9,7 @@ const userSchema = new Schema(
     userName: String,
     botStep: String,
     currentGroupId: { type: mongoose.Types.ObjectId, ref: "Group" },
-    chatId: { type: Number, required: true },
-
+    chatId: { type: Number, required: true, unique: true },
     payExpenseTo: mongoose.Types.ObjectId,
     payExpenseAmount: String,
 

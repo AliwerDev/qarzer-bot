@@ -1,5 +1,6 @@
 const _ = require("lodash");
 const TelegramBot = require("node-telegram-bot-api");
+var cachegoose = require("recachegoose");
 
 const User = require("../models/user");
 const Group = require("../models/group");
@@ -22,7 +23,7 @@ class QarzerBot {
     const message = msg.text;
 
     // USER CHECKING
-    const user = await User.findOne({ chatId });
+    const user = await User.findOne({ chatId }).cache(300, chatId);
     if (!user) return this.createUser(chatId, msg);
 
     // CHECK BOT STEPS
@@ -89,7 +90,7 @@ class QarzerBot {
   // CALLBACK HANDLER
   onCallBackQuery = async (query) => {
     const chatId = query.from.id;
-    const user = await User.findOne({ chatId });
+    const user = await User.findOne({ chatId }).cache(300, chatId);
 
     if (query.data.startsWith("CURRENT_GROUP")) return this.changeCurrentGroup(user, query);
     if (query.data.startsWith("CHOOSE_DEBTOR")) return this.chooseDebtors(user, query);
@@ -113,7 +114,7 @@ class QarzerBot {
       user.botStep = "";
       user.save();
     }
-    this.sendMessage(user, "QARZER ga hush kelibsiz!");
+    this.sendMessage(user, "🎉 Qarz kalkulyator botiga xush kelibsiz!\n\n <i>Bot dan foydalanish - https://youtu.be/AUWzXo2EFkY</i>");
   }
 
   clickBotMenu(user) {
@@ -121,7 +122,7 @@ class QarzerBot {
   }
 
   clickCreateExpens = async (user) => {
-    const group = await Group.findById(user.currentGroupId);
+    const group = await Group.findById(user.currentGroupId).cache(300, user.currentGroupId);
     if (group?.members?.length <= 1) {
       let alert = "Qarz yaratish uchun guruhda kamida 2 kishi bo'lishi kerak!\n\n";
       if (String(group.creatorId) === String(user._id)) alert += `Guruhga dostlaringizni taklif qilish uchun maxfiy raqam: <code>${group._id}</code>`;
@@ -304,7 +305,12 @@ class QarzerBot {
   createUser(chatId, msg) {
     const userdata = { firstName: msg.from.first_name, lastName: msg.from.last_name, userName: msg.from.username, chatId };
     const user = new User(userdata);
-    user.save();
+    user
+      .save()
+      .then((user) => this.clickBotStart(user))
+      .catch((err) => {
+        console.log("qayta creating");
+      });
   }
 
   async getMyExpenses(user) {
@@ -348,7 +354,7 @@ class QarzerBot {
     chatId = chatId || user.chatId;
 
     let options = this.messageOptions(keys, isInline, withoutKey);
-    if (!user.currentGroupId) options = this.messageOptions(noCurrentGroupKeys);
+    if (!user.currentGroupId && !_.isEqual(keys, onlyHomePageKey)) options = this.messageOptions(noCurrentGroupKeys);
     if (editMsgId) this.bot.editMessageText(message, { chat_id: chatId, message_id: editMsgId, ...options });
     else this.bot.sendMessage(chatId, message, options);
   }
@@ -398,6 +404,7 @@ class QarzerBot {
   displayChooseDeptors(user, choosedIds = [], msgId) {
     Group.findById(user.currentGroupId)
       .populate("members")
+      .cache(300, user.currentGroupId)
       .then(({ members }) => {
         let inlineKeys;
 
@@ -426,7 +433,7 @@ class QarzerBot {
     user.incomplatedGroupName = message;
     user.botStep = botSteps.groupCurrency;
     user.save().then((g) => {
-      this.sendMessage(user, `Guruh uchun pul birligini kiriting: \n<code>MU: UZS, USD, ...</code>`, { keys: onlyHomePageKey });
+      this.sendMessage(user, `Guruh uchun pul birligini kiriting: \nExample: <code>UZS</code>, <code>USD</code>, ...`, { keys: onlyHomePageKey });
     });
   }
 
@@ -448,17 +455,15 @@ class QarzerBot {
   joinGroup(user, message) {
     Group.findOneAndUpdate({ _id: message }, { $addToSet: { members: user._id } })
       .then((group) => {
-        if (group.members?.find((memberId) => String(memberId) === String(user._id))) {
-          return this.sendMessage(user, "Siz bu guruhda avvaldan mavjudsiz, iltimos qaytadan kiriting:", { keys: onlyHomePageKey });
-        }
         user.botStep = "";
         user.currentGroupId = message;
+        cachegoose.clearCache(user.currentGroupId);
         user.save().then(() => this.sendMessage(user, `Tabriklaymiz siz <code>${group.name}</code> guruhiga muvaffaqqiyatli qo'shildingiz!`));
       })
       .catch((err) => {
+        console.log(err);
         user.botStep = "";
-        user.save();
-        this.sendMessage(user, "Bunday guruh topilmadi!");
+        user.save().then(() => this.sendMessage(user, "Bunday guruh topilmadi!"));
       });
   }
 
@@ -541,7 +546,7 @@ class QarzerBot {
     let debtorsCount = 0;
 
     if (user.incomplatedExpense.debtors?.find((item) => item === "ALL")) {
-      const group = await Group.findById(user.currentGroupId);
+      const group = await Group.findById(user.currentGroupId).cache(300, user.currentGroupId);
       debtorsCount = group.members.length - 1;
       user.incomplatedExpense.debtors = group.members.filter((item) => String(item) !== String(user._id));
     } else debtorsCount = user.incomplatedExpense.debtors?.length;
@@ -550,6 +555,7 @@ class QarzerBot {
     amountForOneDebtor = _.round(amountForOneDebtor, 2);
 
     user.incomplatedExpense.amountForOneDebtor = amountForOneDebtor;
+    user.botStep = "";
     user.save();
 
     this.bot.deleteMessage(user.chatId, msgId);
@@ -566,6 +572,7 @@ class QarzerBot {
   };
 
   createExpense = async (user, query) => {
+    const msgId = query.message.message_id;
     const expenses = user.incomplatedExpense.debtors?.map((debtorId) => ({
       amount: user.incomplatedExpense.amountForOneDebtor,
       groupId: user.currentGroupId,
@@ -578,9 +585,8 @@ class QarzerBot {
     user.incomplatedExpense = { debtors: [] };
     user.save();
 
-    this.bot.answerCallbackQuery(query.id);
     Expense.create(expenses).then((exp) => {
-      this.sendMessage(user, "Qarzlar muvaffaqqiyatli yaratildi!");
+      this.bot.deleteMessage(user.chatId, msgId).then(() => this.sendMessage(user, "🎉 Qarzlar muvaffaqqiyatli yaratildi!"));
       const expIds = exp.map((item) => item._id);
 
       Expense.find({ _id: expIds })
