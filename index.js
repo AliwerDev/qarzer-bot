@@ -6,12 +6,12 @@ cachegoose(mongoose, {
   engine: "memory",
 });
 
-// const mongoURI = "mongodb+srv://aliwerdev:1234@cluster0.qu6p9ff.mongodb.net/qarzer";
-// const TG_TOKEN = "6874089411:AAHODLWxmg9Cm1rGE7k1HEgZkzygSGlm-aY";
+const mongoURI = "mongodb+srv://aliwerdev:1234@cluster0.qu6p9ff.mongodb.net/qarzer";
+const TG_TOKEN = "6874089411:AAHODLWxmg9Cm1rGE7k1HEgZkzygSGlm-aY";
 
 // const mongoURI = "mongodb://localhost:27017/test";
-const mongoURI = "mongodb+srv://aliwerdev:1234@cluster0.qu6p9ff.mongodb.net/qarzer-test";
-const TG_TOKEN = "6514484502:AAEgDaHDKZz4InfMd1ZlA8bcf1IPdzWPpls";
+// const mongoURI = "mongodb+srv://aliwerdev:1234@cluster0.qu6p9ff.mongodb.net/qarzer-test";
+// const TG_TOKEN = "6514484502:AAEgDaHDKZz4InfMd1ZlA8bcf1IPdzWPpls";
 
 mongoose
   .connect(mongoURI)
