@@ -146,7 +146,7 @@ class QarzerBot {
       // text += `${i + 1}. ${name.trim()}:  ${amount > 0 ? "+" : ""}${formatMoney(currency, amount)}\n`;
     });
 
-    this.sendMessage(user, text, { keys: _.chunk(inlineKeys, 4), isInline: true });
+    this.sendMessage(user, text, { keys: [inlineKeys], isInline: true });
   };
 
   clickActiveExpenseList = async (user, pageNumber = 0, msgId) => {
