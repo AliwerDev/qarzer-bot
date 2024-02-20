@@ -143,7 +143,6 @@ class QarzerBot {
 
     expenses.map(({ name, currency, amount, _id }, i) => {
       inlineKeys.push([{ text: `${name.trim()}:  ${amount > 0 ? "+" : ""}${formatMoney(currency, amount)}`, callback_data: `HISTORY ${_id}` }]);
-      // text += `${i + 1}. ${name.trim()}:  ${amount > 0 ? "+" : ""}${formatMoney(currency, amount)}\n`;
     });
 
     this.sendMessage(user, text, { keys: inlineKeys, isInline: true });
@@ -700,8 +699,8 @@ class QarzerBot {
     }
 
     await User.findByIdAndUpdate(user._id, { payExpenseTo: partnerId, botStep: botSteps.payExpenseAmount });
-    const inlineKeys = [[{ text: "Hammasi", callback_data: "PAY_EXPENSE ALL" }]];
-    this.sendMessage(user, "To'lamoqchi bo'lgan pul miqdorini kiriting, yoki tanlang: ", { keys: inlineKeys, isInline: true, editMsgId: msgId });
+    const inlineKeys = [[{ text: "Hammasini to'ladim", callback_data: "PAY_EXPENSE ALL" }]];
+    this.sendMessage(user, "To'lagan pul miqdoringizni kiriting:\n\n <i>Agar hammasini to'lagan bo'lsangiz tugmani bosing</i> ", { keys: inlineKeys, isInline: true, editMsgId: msgId });
   };
 }
 
