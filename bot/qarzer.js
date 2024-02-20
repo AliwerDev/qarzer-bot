@@ -101,6 +101,7 @@ class QarzerBot {
     if (query.data.startsWith("REMINDER")) return this.reminderExpense(user, query);
     if (query.data.startsWith("PAY_EXPENSE_ACCEPTED")) return this.payExpenseAccepted(user, query);
     if (query.data.startsWith("PAY_EXPENSE_REJECTED")) return this.payExpenseRejected(user, query);
+    if (query.data.startsWith("PAY_EXPENSE_CANCELED")) return this.payExpenseCanceled(user, query);
     if (query.data.startsWith("PAY_EXPENSE")) return this.payExpense(user, query);
     if (query.data.startsWith("HISTORY")) return this.expenseHistory(user, query);
     if (query.data.startsWith("DELETE_MSG")) return this.bot.deleteMessage(chatId, query.message.message_id);
@@ -654,6 +655,12 @@ class QarzerBot {
       .catch(() => {});
   };
 
+  payExpenseCanceled = (user, query) => {
+    const msgId = query.message.message_id;
+    this.bot.deleteMessage(user.chatId, msgId);
+    this.clickBack(user);
+  };
+
   expenseHistory = async (user, query) => {
     const pageCount = 10;
     const [name, partnerId, pageNumber = 0] = query.data.split(" ");
@@ -699,8 +706,13 @@ class QarzerBot {
     }
 
     await User.findByIdAndUpdate(user._id, { payExpenseTo: partnerId, botStep: botSteps.payExpenseAmount });
-    const inlineKeys = [[{ text: "Hammasini to'ladim", callback_data: "PAY_EXPENSE ALL" }]];
-    this.sendMessage(user, "To'lagan pul miqdoringizni kiriting:\n\n <i>Agar hammasini to'lagan bo'lsangiz tugmani bosing</i> ", { keys: inlineKeys, isInline: true, editMsgId: msgId });
+    const inlineKeys = [
+      [
+        { text: "❌ Bekor qilish", callback_data: "PAY_EXPENSE_CANCELED" },
+        { text: "Hammasi", callback_data: "PAY_EXPENSE ALL" },
+      ],
+    ];
+    this.sendMessage(user, "<b>To'lagan pul miqdoringizni kiriting:</b>\n\n<i>Agar hammasini to'lagan bo'lsangiz 'Hammasi' tugmasini bosing</i> ", { keys: inlineKeys, isInline: true, editMsgId: msgId });
   };
 }
 
