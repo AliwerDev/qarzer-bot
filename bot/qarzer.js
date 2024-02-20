@@ -142,11 +142,11 @@ class QarzerBot {
     const inlineKeys = [];
 
     expenses.map(({ name, currency, amount, _id }, i) => {
-      inlineKeys.push({ text: `${name.trim()}:  ${amount > 0 ? "+" : ""}${formatMoney(currency, amount)}`, callback_data: `HISTORY ${_id}` });
+      inlineKeys.push([{ text: `${name.trim()}:  ${amount > 0 ? "+" : ""}${formatMoney(currency, amount)}`, callback_data: `HISTORY ${_id}` }]);
       // text += `${i + 1}. ${name.trim()}:  ${amount > 0 ? "+" : ""}${formatMoney(currency, amount)}\n`;
     });
 
-    this.sendMessage(user, text, { keys: [inlineKeys], isInline: true });
+    this.sendMessage(user, text, { keys: inlineKeys, isInline: true });
   };
 
   clickActiveExpenseList = async (user, pageNumber = 0, msgId) => {
