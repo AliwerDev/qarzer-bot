@@ -30,8 +30,6 @@ class QarzerBot {
     if (message === keys.homePage || message === keys.home) return this.clickBack(user);
     if (user.botStep === botSteps.groupName) return this.enterGroupName(user, message);
     if (user.botStep === botSteps.groupCurrency) return this.enterGroupCurrency(user, message);
-    if (user.botStep === botSteps.joinGroup) return this.joinGroup(user, message);
-    if (user.botStep === botSteps.changeUserName) return this.changeUserName(user, message);
 
     // creating expense steps
     if (user.botStep === botSteps.expensDescription) return this.enterExpensDesc(user, message);
@@ -39,7 +37,10 @@ class QarzerBot {
 
     // pay expense steps
     if (user.botStep === botSteps.payExpenseAmount) return this.enterPayExpenseAmount(user, message);
+
+    // new functions
     if (_.startsWith(message, keys.message)) return this.sendMessageToGroup(user, message);
+    if (_.startsWith(message, keys.join)) return this.joinGroup(user, message);
 
     // CHECKING MESSAGE
     switch (message) {
@@ -64,12 +65,6 @@ class QarzerBot {
       case keys.createGroup:
         this.clickCreateGroup(user);
         break;
-      case keys.joinGroup:
-        this.clickJoinGroup(user);
-        break;
-      case keys.currentGroup:
-        this.clickCurrentGroup(user);
-        break;
       case keys.myGroups:
         this.clickMyGroups(user);
         break;
@@ -78,6 +73,9 @@ class QarzerBot {
         break;
       case keys.change_name:
         this.clickChangeName(user);
+        break;
+      case keys.group_link:
+        this.clickGroupLink(user);
         break;
       case keys.clear:
         this.clickClear(msg);
@@ -125,7 +123,7 @@ class QarzerBot {
     const group = await Group.findById(user.currentGroupId).cache(300, user.currentGroupId);
     if (group?.members?.length <= 1) {
       let alert = "Qarz yaratish uchun guruhda kamida 2 kishi bo'lishi kerak!\n\n";
-      if (String(group.creatorId) === String(user._id)) alert += `Guruhga dostlaringizni taklif qilish uchun maxfiy raqam: <code>${group._id}</code>`;
+      if (String(group.creatorId) === String(user._id)) alert += `Guruhga qo'shilish uchun message: <code>join/${group._id}</code>`;
       return this.sendMessage(user, alert);
     }
 
@@ -138,15 +136,15 @@ class QarzerBot {
     const expenses = await this.getMyExpenses(user);
     if (expenses.length === 0) return this.sendMessage(user, "Sizda qarzlar mavjud emas!");
 
-    let text = "<b>Umumiy qarzlaringiz:</b> \n\n";
+    let text = "<b>🗒 Umumiy qarzlaringiz | qarz tarixini ko'rish uchun o'sha tugmani bosing:</b> \n\n";
+    text += "<i>➕ Sizdan qarz, ➖ Siz qarzsiz</i>";
+
     const inlineKeys = [];
 
     expenses.map(({ name, currency, amount, _id }, i) => {
-      inlineKeys.push({ text: i + 1, callback_data: `HISTORY ${_id}` });
-      text += `${i + 1}. ${name.trim()}:  ${amount > 0 ? "+" : ""}${formatMoney(currency, amount)}\n`;
+      inlineKeys.push({ text: `${name.trim()}:  ${amount > 0 ? "+" : ""}${formatMoney(currency, amount)}`, callback_data: `HISTORY ${_id}` });
+      // text += `${i + 1}. ${name.trim()}:  ${amount > 0 ? "+" : ""}${formatMoney(currency, amount)}\n`;
     });
-
-    text += "\n<i>➕ Sizdan qarz, ➖ Siz qarzsiz</i> \n\n <i>Qarzlar tarixini ko'rish uchun tanlang:</i>";
 
     this.sendMessage(user, text, { keys: _.chunk(inlineKeys, 4), isInline: true });
   };
@@ -227,50 +225,26 @@ class QarzerBot {
     user.save();
   }
 
-  clickJoinGroup(user) {
-    this.sendMessage(user, "🗝 Guruh maxfiy raqamini kiriting:", { keys: onlyHomePageKey });
-    user.botStep = botSteps.joinGroup;
-    user.save();
-  }
-
-  clickCurrentGroup(user) {
+  clickMyGroups(user) {
     Group.find({ members: user._id })
       .then((groups) => {
         const currentGroup = groups.find((g) => String(g._id) === String(user.currentGroupId));
 
-        let listMessage = `<b>${currentGroup.name}</b>\n\n`;
-        listMessage += `Pul birligi: <b>${currentGroup.currency}</b>\n`;
-        listMessage += `Maxfiy raqami: <code>${currentGroup._id}</code>\n\n`;
+        let listMessage = `Joriy guruh: <b>${currentGroup.name}</b>\n`;
+        listMessage += `Guruhga qo'shilish uchun message: <code>join/${currentGroup._id}</code>\n\n`;
 
-        if (groups.length > 1) listMessage += "Almashtirish uchun quidagi guruhlaringizdan birini tanlang:";
+        if (groups.length > 1) listMessage += "Joriy guruhni almashtirish uchun tanlang:";
         const inlineKeys = groups.filter((g) => String(g._id) !== String(user.currentGroupId)).map((group) => [{ text: group.name, callback_data: "CURRENT_GROUP " + String(group._id) }]);
         this.sendMessage(user, listMessage, { keys: inlineKeys, isInline: true });
       })
       .catch((err) => console.log(err));
   }
 
-  clickMyGroups(user) {
-    Group.find({ creatorId: user._id }).then((groups) => {
-      if (_.isEmpty(groups)) return this.sendMessage(user, "<b>Hali sizda guruhlar mavjud emas!</b>", { keys: groupKeys });
-
-      let listMessage = "<b>Your Groups:</b> \n\n";
-
-      groups.forEach((group, index) => {
-        listMessage += `${index + 1}. ${group.name}\n Pul birligi: ${group.currency}\n Maxfiy raqam: <code>${group._id}</code> \n\n`;
-      });
-
-      this.sendMessage(user, listMessage, { keys: groupKeys });
-    });
-  }
-
   clickGroupMembers(user) {
     Group.findById(user.currentGroupId)
       .populate("members")
       .then((group) => {
-        const creator = group.members?.find((user) => String(user._id) === String(group.creatorId));
-
         let listMessage = `<b>${group.name}</b>\n\n`;
-
         group.members?.forEach((user, index) => {
           listMessage += `${index + 1}. <a href="tg://user?id=${user.chatId || user.userName}">${getFullName(user)}</a>\n`;
         });
@@ -281,6 +255,11 @@ class QarzerBot {
   clickChangeName(user) {
     user.botStep = botSteps.changeUserName;
     user.save().then(() => this.sendMessage(user, "✏️ Ism familyangizni kiriting: \n\n <i>Misol: Alisher O'rolov</i>", { keys: onlyHomePageKey }));
+  }
+
+  clickGroupLink(user) {
+    const text = `Guruhga qo'shilish uchun ushbu messageni do'stlaringiz @qarzer_bot ga yuborishi kerak! \n\nMessage: <code>join/${user.currentGroupId}</code>`;
+    this.sendMessage(user, text);
   }
 
   clickBack(user) {
@@ -447,24 +426,23 @@ class QarzerBot {
         user.currentGroupId = g._id;
         user.botStep = "";
         user.save();
-        this.sendMessage(user, `<code>"${g.name}"</code> - guruh muvaffaqqiyatli yaratildi va joriy guruhingiz qilib belgilandi!\n\n<i>Maxfiy raqam: <code>${g._id}</code></i>`);
+        const text = `<i>Guruhga qo'shilish uchun do'stlaringiz ushbu messageni bot ga yuborishi kerak! \nMessage: <code>join/${g._id}</code></i>`;
+        this.sendMessage(user, `<b>"${g.name}"</b> - guruh muvaffaqqiyatli yaratildi!\n\n${text}`);
       })
       .catch((err) => console.log(err));
   }
 
   joinGroup(user, message) {
-    Group.findOneAndUpdate({ _id: message }, { $addToSet: { members: user._id } })
+    const groupId = message.split("/")[1];
+    if (!groupId) this.sendMessage(user, "Bunday guruh mavjud emas!");
+
+    Group.findOneAndUpdate({ _id: groupId }, { $addToSet: { members: user._id } })
       .then((group) => {
-        user.botStep = "";
-        user.currentGroupId = message;
+        user.currentGroupId = groupId;
         cachegoose.clearCache(user.currentGroupId);
         user.save().then(() => this.sendMessage(user, `Tabriklaymiz siz <code>${group.name}</code> guruhiga muvaffaqqiyatli qo'shildingiz!`));
       })
-      .catch((err) => {
-        console.log(err);
-        user.botStep = "";
-        user.save().then(() => this.sendMessage(user, "Bunday guruh topilmadi!"));
-      });
+      .catch((err) => this.sendMessage(user, "Bunday guruh mavjud emas!"));
   }
 
   changeUserName(user, message) {

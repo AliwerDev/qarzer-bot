@@ -5,7 +5,9 @@ const keys = {
   menu: "/menu",
   home: "/home",
   change_name: "/change_name",
+  group_link: "/group_link",
   message: "/message",
+  join: "join/",
 
   // MAIN KEYS
   createExpens: "➕ Qarz yaratish",
@@ -15,15 +17,12 @@ const keys = {
 
   //GROUP
   createGroup: "➕ Guruh yaratish",
-  joinGroup: "🤝 Guruhga qo'shilish",
-  myGroups: "📋 Mening guruhlarim",
-  currentGroup: "📌 Joriy guruhim",
+  myGroups: "📋 Guruhlarim",
   members: "👥 Guruh azolari",
   homePage: "🔙 Asosiy bo'lim",
 };
 
 module.exports.botSteps = {
-  joinGroup: "JOIN_TO_GROUP",
   groupName: "GROUP_NAME",
   groupCurrency: "GROUP_CURRENCY",
   expensAmount: "EXPENSE_AMOUNT",
@@ -44,10 +43,9 @@ module.exports.mainKeys = [
 
 module.exports.onlyHomePageKey = [[keys.homePage]];
 
-module.exports.noCurrentGroupKeys = [[keys.joinGroup, keys.createGroup]];
+module.exports.noCurrentGroupKeys = [[keys.createGroup]];
 
 module.exports.groupKeys = [
-  [keys.createGroup, keys.joinGroup],
-  [keys.currentGroup, keys.myGroups],
+  [keys.createGroup, keys.myGroups],
   [keys.members, keys.homePage],
 ];
