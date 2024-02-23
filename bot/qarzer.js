@@ -113,7 +113,7 @@ class QarzerBot {
       user.botStep = "";
       user.save();
     }
-    this.sendMessage(user, "🎉 Qarz kalkulyator botiga xush kelibsiz!\n\n <i>Bot dan foydalanish - https://youtu.be/AUWzXo2EFkY</i>");
+    this.sendMessage(user, "🎉 Qarz kalkulyator botiga xush kelibsiz!\n\n <i>Bot dan foydalanish - https://youtu.be/SS4JFC_L-yE</i>");
   }
 
   clickBotMenu(user) {
