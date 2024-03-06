@@ -1,20 +1,24 @@
 const mongoose = require("mongoose");
+const app = require("express")();
+const cors = require("cors");
+const cachegoose = require("recachegoose");
 const QarzerBot = require("./bot/qarzer");
-var cachegoose = require("recachegoose");
+const { TG_TOKEN, MONGO_URL, PORT } = require("./const");
+const routes = require("./admin/routes");
 
 cachegoose(mongoose, {
   engine: "memory",
 });
 
-const mongoURI = "mongodb+srv://aliwerdev:1234@cluster0.qu6p9ff.mongodb.net/qarzer";
-const TG_TOKEN = "6874089411:AAHODLWxmg9Cm1rGE7k1HEgZkzygSGlm-aY";
+app.use(cors());
+app.use("/api", routes);
 
-// const mongoURI = "mongodb://localhost:27017/test";
-// const mongoURI = "mongodb+srv://aliwerdev:1234@cluster0.qu6p9ff.mongodb.net/qarzer-test";
-// const TG_TOKEN = "6514484502:AAEgDaHDKZz4InfMd1ZlA8bcf1IPdzWPpls";
+// app.listen(PORT, () => {
+//   console.log(`QARZER app listening on port ${PORT}`);
+// });
 
 mongoose
-  .connect(mongoURI)
+  .connect(MONGO_URL)
   .then((result) => {
     console.log("CONNECTED TO DB");
     new QarzerBot(TG_TOKEN);

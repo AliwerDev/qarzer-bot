@@ -7,7 +7,7 @@ const Group = require("../models/group");
 const Expense = require("../models/expense");
 
 const { mainKeys, keys, groupKeys, noCurrentGroupKeys, botSteps, onlyHomePageKey, expenseKeys } = require("./keys");
-const { getFullName, reminderText, formatMoney } = require("../utils/functions");
+const { getFullName, reminderText, formatMoney, generateAccessUrl } = require("../utils/functions");
 const moment = require("moment");
 
 class QarzerBot {
@@ -19,6 +19,7 @@ class QarzerBot {
 
   // MESSAGE HANDLER
   onMessage = async (msg) => {
+    console.log(msg);
     const chatId = msg.chat.id;
     const message = msg.text;
 
@@ -216,7 +217,15 @@ class QarzerBot {
   };
 
   clickGroupMenu(user) {
-    user.save().then(() => this.sendMessage(user, "Guruh sozlamalari⬇️", { keys: groupKeys }));
+    this.sendMessage(user, "Guruh sozlamalari⬇️", { keys: groupKeys });
+    Group.findById(user.currentGroupId)
+      .cache(300, user.currentGroupId)
+      .then((group) => {
+        if (String(group.creatorId) === String(user._id)) {
+          const inlineKey = [[{ text: "Veb sahifaga kirish", url: generateAccessUrl(user._id, group._id) }]];
+          this.sendMessage(user, "Guruhingizni veb sahifadan ham boshqarishingiz mumkin", { keys: inlineKey, isInline: true });
+        }
+      });
   }
 
   clickCreateGroup(user) {

@@ -1,3 +1,6 @@
+const jwt = require("jsonwebtoken");
+const { JWT_KEY, BASE_URL, HOST_URL } = require("../const");
+
 module.exports.getFullName = (user) => `${user?.firstName || ""} ${user?.lastName || ""}`.trim();
 
 module.exports.reminderText = () => {
@@ -28,4 +31,11 @@ module.exports.reminderText = () => {
 
 module.exports.formatMoney = (currency, money) => {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency }).format(money);
+};
+
+module.exports.generateAccessUrl = (userId, groupId) => {
+  const token = jwt.sign({ userId, groupId }, JWT_KEY, {
+    expiresIn: "24h",
+  });
+  return `${HOST_URL}?login=true&token=${token}`;
 };
