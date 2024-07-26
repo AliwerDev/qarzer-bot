@@ -1,5 +1,5 @@
 const jwt = require("jsonwebtoken");
-const { JWT_KEY, BASE_URL, HOST_URL } = require("../const");
+const { JWT_KEY, HOST_URL } = require("../const");
 
 module.exports.getFullName = (user) => `${user?.firstName || ""} ${user?.lastName || ""}`.trim();
 
@@ -27,6 +27,14 @@ module.exports.reminderText = () => {
   const randomIndex = Math.floor(Math.random() * reminders.length);
 
   return reminders[randomIndex];
+};
+module.exports.getIdFromText = (text) => {
+  const regex = /🔧(\d+)/;
+  const match = text.match(regex);
+  if (match) {
+    return match[1];
+  }
+  return null;
 };
 
 module.exports.formatMoney = (currency, money) => {

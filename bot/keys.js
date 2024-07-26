@@ -36,6 +36,10 @@ module.exports.botSteps = {
 
 module.exports.keys = keys;
 
+module.exports.texts = {
+  qarzBiriktirildi: "📨 Sizga yangi qarz biriktirildi:",
+};
+
 module.exports.mainKeys = [
   [keys.createExpens, keys.payExpense],
   [keys.myExpenses, keys.group],

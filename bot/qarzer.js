@@ -6,25 +6,28 @@ const User = require("../models/user");
 const Group = require("../models/group");
 const Expense = require("../models/expense");
 
-const { mainKeys, keys, groupKeys, noCurrentGroupKeys, botSteps, onlyHomePageKey, expenseKeys } = require("./keys");
-const { getFullName, reminderText, formatMoney, generateAccessUrl } = require("../utils/functions");
+const { mainKeys, keys, groupKeys, noCurrentGroupKeys, botSteps, onlyHomePageKey, expenseKeys, texts } = require("./keys");
+const { getFullName, reminderText, formatMoney, generateAccessUrl, getIdFromText } = require("../utils/functions");
 const moment = require("moment");
+
+const getDescriptionFronExpenseDesc = (desc) => {
+  return desc.slice(desc.lastIndexOf(":") + 2);
+};
 
 class QarzerBot {
   constructor(TG_TOKEN) {
     this.bot = new TelegramBot(TG_TOKEN, { polling: true });
-    this.bot.on("message", this.onMessage);
-    this.bot.on("callback_query", this.onCallBackQuery);
+    this.bot.on("message", this.handleMessage.bind(this));
+    this.bot.on("callback_query", this.handleCallbackQuery.bind(this));
   }
 
   // MESSAGE HANDLER
-  onMessage = async (msg) => {
-    console.log(msg);
-    const chatId = msg.chat.id;
+  handleMessage = async (msg) => {
+    const chatId = msg.from.id;
     const message = msg.text;
 
     // USER CHECKING
-    const user = await User.findOne({ chatId }).cache(300, chatId);
+    const user = await this.getUser(chatId);
     if (!user) return this.createUser(chatId, msg);
 
     // CHECK BOT STEPS
@@ -42,6 +45,8 @@ class QarzerBot {
     // new functions
     if (_.startsWith(message, keys.message)) return this.sendMessageToGroup(user, message);
     if (_.startsWith(message, keys.join)) return this.joinGroup(user, message);
+
+    if (msg.reply_to_message && _.startsWith(msg.reply_to_message.text, texts.qarzBiriktirildi)) return this.replyFeedback(user, msg);
 
     // CHECKING MESSAGE
     switch (message) {
@@ -81,13 +86,16 @@ class QarzerBot {
       case keys.clear:
         this.clickClear(msg);
         break;
+      case "test":
+        this.test(user, msg);
+        break;
       default:
         this.bot.deleteMessage(chatId, msg.message_id);
     }
   };
 
   // CALLBACK HANDLER
-  onCallBackQuery = async (query) => {
+  handleCallbackQuery = async (query) => {
     const chatId = query.from.id;
     const user = await User.findOne({ chatId }).cache(300, chatId);
 
@@ -289,16 +297,37 @@ class QarzerBot {
     }
   }
 
+  test(user, msg) {
+    this.bot.sendChatAction(user.chatId, "typing");
+
+    // Simulate processing time (you can replace this with actual processing logic)
+    setTimeout(() => {
+      // Once processing is complete, send a message
+      this.sendMessage(user, "Processing complete!");
+    }, 5000);
+  }
+
   // BOT FUNCTIONS
-  createUser(chatId, msg) {
-    const userdata = { firstName: msg.from.first_name, lastName: msg.from.last_name, userName: msg.from.username, chatId };
-    const user = new User(userdata);
-    user
-      .save()
-      .then((user) => this.clickBotStart(user))
-      .catch((err) => {
-        console.log("qayta creating");
-      });
+  async createUser(chatId, msg) {
+    const { first_name, last_name, username } = msg.from;
+    const userData = { firstName: first_name, lastName: last_name, username, chatId };
+
+    try {
+      const user = new User(userData);
+      await user.save();
+      this.clickBotStart(user);
+    } catch (error) {
+      console.error("Error creating user:", error);
+    }
+  }
+
+  async getUser(chatId) {
+    try {
+      return await User.findOne({ chatId }).cache(300, chatId);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      return null;
+    }
   }
 
   async getMyExpenses(user) {
@@ -319,6 +348,14 @@ class QarzerBot {
     });
 
     return Object.values(expensesObject);
+  }
+
+  replyFeedback(user, msg) {
+    const replyMsg = msg.reply_to_message;
+
+    const chatId = getIdFromText(replyMsg.text);
+    if (!chatId) return;
+    this.bot.sendMessage(chatId, `Sizga "${getDescriptionFronExpenseDesc(replyMsg.text)}" qarzingiz yuzasidan xabar keldi:`).then(() => this.bot.forwardMessage(chatId, user.chatId, msg.message_id).then(() => this.sendMessage(user, "Xabaringiz yuborildi!")));
   }
 
   messageOptions(keys, isInline = false, withoutKey = false) {
@@ -573,14 +610,14 @@ class QarzerBot {
     user.save();
 
     Expense.create(expenses).then((exp) => {
-      this.bot.deleteMessage(user.chatId, msgId).then(() => this.sendMessage(user, "🎉 Qarzlar muvaffaqqiyatli yaratildi!"));
+      this.bot.deleteMessage(user.chatId, msgId).then(() => this.sendMessage(user, `🎉 ${exp[0]?.description} \qqarzlar muvaffaqqiyatli yaratildi!`));
       const expIds = exp.map((item) => item._id);
 
       Expense.find({ _id: expIds })
         .populate("relatedTo", "chatId")
         .then((newExps) => {
           newExps.map((item) => {
-            const expensText = `📨 Sizga yangi qarz biriktirildi:\n\n💆‍♂️Kimdan: <a href="tg://user?id=${user.chatId}">${getFullName(user)}</a>\n💵Qarz miqdori: ${formatMoney(item.currency, item.amount)}\n📃Sharx: ${item.description}`;
+            const expensText = `${texts.qarzBiriktirildi}\n\n🔧${user.chatId}\n💆‍♂️Kimdan: <a href="tg://user?id=${user.chatId}">${getFullName(user)}</a>\n💵Qarz miqdori: ${formatMoney(item.currency, item.amount)}\n📃Sharx: ${item.description}`;
             this.sendMessage(user, expensText, { chatId: item.relatedTo.chatId });
           });
         });
