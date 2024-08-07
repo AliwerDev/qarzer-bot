@@ -282,7 +282,6 @@ class QarzerBot {
   clickBack(user) {
     if (user.incomplatedExpense.amount || user.incomplatedExpense.description) user.incomplatedExpense = { debtors: [] };
     if (user.incomplatedGroupName) user.incomplatedGroupName = "";
-    if (user.payExpenseAmount) user.payExpenseAmount = undefined;
     if (user.payExpenseTo) user.payExpenseTo = undefined;
 
     user.botStep = "";
@@ -678,7 +677,9 @@ class QarzerBot {
 
     User.findById(partnerId)
       .then((partner) => {
-        if (partner.payExpenseAmount === "ALL")
+        if (!partner.payExpenseAmount) {
+          this.sendMessage(user, "Bu so'rov muddati tugagan!", { withoutKey: true });
+        } else if (partner.payExpenseAmount === "ALL")
           Expense.updateMany({ status: "active", $and: [{ $or: [{ creatorId: user._id }, { creatorId: partnerId }] }, { $or: [{ relatedTo: user._id }, { relatedTo: partnerId }] }] }, { status: "paid" }).then(() => {
             complated(partner);
           });
